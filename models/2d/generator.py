@@ -34,10 +34,10 @@ class Generator(Sequence):
         nb_channels = len(slices[0]) # Get the number of components
         sz = len(gts)
         for i in range(sz):
-            h1, w1, c1 = gts[i].shape
+            gt_h, gt_w, c1 = gts[i].shape
             for channel in range(c1):
                 # First slice take the first component
-                assert(slices[i][0].shape == (h1, w1, c1))
+                h1, w1, c1 = slices[i][0].shape
                 new_slice = (np.array((slices[i][0])[:, :, channel])).reshape(h1, w1, 1)
                 # This lead to new_slice to look like this as a volume
                 """ flair, t1, preprocess ?
@@ -45,19 +45,15 @@ class Generator(Sequence):
                     flair, t1, preprocess ?
                 """
                 for component in range(1, nb_channels):
-                    curr_component = slices[i][component]
-                    # Mb remove in prod ?
-                    assert(curr_component.shape == (h1, w1, c1))
                     curr_slice = ((slices[i][component])[:, :, channel]).reshape(h1, w1, 1)
                     new_slice = np.concatenate((new_slice, curr_slice), axis=-1)
                 # Check stacking
-                assert(new_slice.shape == (h1, w1, nb_channels))
                 # Models asks for (w, h, 3)
                 # So if we have a missing channel, add a dummy one
                 if dimension == 2:
                     new_slice = np.concatenate((new_slice, np.zeros((h1, w1, 1))), axis=-1)
                 X.append(new_slice)
-                gt = ((gts[i])[:, :, channel]).reshape(h1, w1, 1)
+                gt = ((gts[i])[:, :, channel]).reshape(gt_h, gt_w, 1)
                 Y.append(gt)
         return np.array(X), np.array(Y)
 
@@ -68,7 +64,7 @@ class Generator(Sequence):
 
         # The chain is nibabel image => Resize into 388, 388 (unet output) => Pad to 572, 572 (unet input)
         # We pad values with 0, but we could do something else aswell
-        Y = np.array([np.pad(resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92, 92), (92, 92), (0, 0))) for gt in gts])
+        Y = np.array([resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1) for gt in gts])
         X = np.array([(
             np.pad(resize(nib.load(slice[0]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0))),
             np.pad(resize(nib.load(slice[1]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0)))) for slice in imgs

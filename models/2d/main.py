@@ -21,7 +21,7 @@ def main(path):
         x = train_gen,
         batch_size = 1,
         epochs=100,
-        callbacks=checkpoint,
+        callbacks=[checkpoint],
         validation_data= val_gen
     )
     
