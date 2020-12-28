@@ -24,16 +24,11 @@ class SlicesGenerator(Sequence):
         return len(self.indices) // self.batch_size
     
     def __get_data(self, batch):
-        # I guess here, do something like
-        # nib.load(images[0]).get_fdata()   ----- train_Data
-        # nib.load(segmentation[0]).get_fdata() ---- GT
-        # Those images have shapes (w,h, 48) => We have 48 slices
-        # What do we do with them ?
         X = get_slices(pad(self.images[batch], self.input_size, self.output_size), self.input_size, self.output_size)
         y = get_slices(pad(self.segmentations[batch], self.output_size, self.output_size), self.output_size, self.output_size)
         return X.reshape(-1, *X.shape[-3:]), y.reshape(-1, *y.shape[-3:])
     
     def __getitem__(self, index):
-        indices = self.indices[index * self.batch_size:index * self.batch_size + self.batch_size]
+        indices = self.indices[index * self.batch_size : index * self.batch_size + self.batch_size]
         X, y = self.__get_data(indices)
         return X, y
