@@ -1,16 +1,15 @@
 import sys
+import numpy as np
 from slices_generator import SlicesGenerator
 from generator import Generator
 from construct_dataset import construct_dataset
 from unet import get_model
-from sklearn.model_selection import train_test_split
 from keras.callbacks import ModelCheckpoint
 
-def main(path):
-    # Path leads to the where the data is Ultrecht, Singapore etc...
-
-    # Dataset
-    gts, slices = construct_dataset(path)
+def main():
+    # Make sure that you have X_train.npy, X_test.npy, Y_train.npy, Y_test.npy before calling the script
+    gts = np.load('Y_train.npy')
+    slices = np.load('X_train.npy')
     # Generators
     train_gen = Generator(gts, slices, batch_size=1, shuffle=True, split_slices=True)
     val_gen = Generator(gts, slices, batch_size=1, shuffle=True, validation=True, split_slices=True)
@@ -26,4 +25,4 @@ def main(path):
     )
     
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main()
