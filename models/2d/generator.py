@@ -5,23 +5,60 @@ from tensorflow.keras.utils import Sequence
 from skimage.transform import resize
 
 class Generator(Sequence):
-    def __init__(self, gts_paths, img_paths, batch_size=1, shuffle=True, input_size=572, output_size=388):
+    def __init__(self, gts_paths, img_paths, batch_size=1, shuffle=True,
+                input_size=572, output_size=388, K_fold = 5, validation=False, slices_per_img=48):
         assert(len(gts_paths) == len(img_paths))
+        self.size = len(gts_paths)
+        
         self.gts = gts_paths
         self.imgs = img_paths
-        self.batch_size = batch_size
         self.shuffle = shuffle
+        self.batch_size = batch_size
         self.input_size = input_size
         self.output_size = output_size
-        self.indices = np.arange(len(self.imgs) * 48)
+        self.K = K_fold
+        self.validation = validation
+        self.slices_per_img = slices_per_img
+        
+        self.last_validation_idx = 0
         self.on_epoch_end()
 
     def on_epoch_end(self):
-        if self.shuffle:
+        # We want to build a K_fold cross validation generator
+        # At each epoch, we will change training and validation data
+
+        validation_size = self.size // self.K
+        training_size = self.size - validation_size
+        validation_gts = []
+        validation_imgs = []
+
+        training_gts = []
+        training_imgs = []
+        for i in range(self.last_validation_idx, self.last_validation_idx + validation_size):
+            validation_gts.append(self.gts[i % self.size])
+            validation_imgs.append(self.imgs[i % self.size])
+
+        self.last_validation_idx = (self.last_validation_idx + validation_size) % self.size
+
+        for i in range(self.last_validation_idx, self.last_validation_idx + training_size):
+            training_gts.append(self.gts[i % self.size])
+            training_imgs.append(self.imgs[i % self.size])
+
+        self.training_gts = np.array(training_gts)
+        self.training_imgs = np.array(training_imgs)
+
+        self.validation_gts = np.array(validation_gts)
+        self.validation_imgs = np.array(validation_imgs)
+
+        if self.validation:
+            self.indices = np.arange(len(self.validation_gts) * self.slices_per_img)
+        else:
+            self.indices = np.arange(len(self.training_gts) * self.slices_per_img)
+
+        if self.shuffle == True:
             np.random.shuffle(self.indices)
     
     def __len__(self):
-        # 48 because we have 48 slices per images
         return len(self.indices) // self.batch_size
 
     # Let's use the same function for 2d and 3d construction of slices
@@ -64,9 +101,12 @@ class Generator(Sequence):
         Y_res = []
         for idx in indices:
             img_idx, img_slice = idx
-
-            gt = self.gts[img_idx]
-            slice = self.imgs[img_idx]
+            if self.validation:
+                gt = self.validation_gts[img_idx]
+                slice = self.validation_imgs[img_idx]
+            else:
+                gt = self.training_gts[img_idx]
+                slice = self.training_imgs[img_idx]
             Y = np.array(resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1))
             X = np.array((
                 np.pad(resize(nib.load(slice[0]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0))),
