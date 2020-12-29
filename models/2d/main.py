@@ -9,10 +9,13 @@ from keras.callbacks import ModelCheckpoint
 def main():
     # Make sure that you have X_train.npy, X_test.npy, Y_train.npy, Y_test.npy before calling the script
     gts = np.load('Y_train.npy')
+
     slices = np.load('X_train.npy')
+    img_idx_slices = np.load('X_train_slices.npy')
+    
     # Generators
-    train_gen = Generator(gts, slices, batch_size=1, shuffle=True, split_slices=True)
-    val_gen = Generator(gts, slices, batch_size=1, shuffle=True, validation=True, split_slices=True)
+    train_gen = Generator(gts, slices, img_idx_slices, batch_size=4)
+    val_gen = Generator(gts, slices, img_idx_slices, batch_size=4, validation=True)
     # Models
     model = get_model((572, 572), 3)
     checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
