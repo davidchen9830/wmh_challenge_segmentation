@@ -9,8 +9,34 @@ from tensorflow.keras import Model
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.layers import Input, Conv2D, MaxPool2D, Conv2DTranspose, Concatenate, Cropping2D
 from tensorflow.keras.optimizers import Adam
-
+import tensorflow.keras.backend as K
 from utils import pad, get_slices, reconstruct
+
+def recall(y_true, y_pred):
+    tp = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = tp / (possible_positives + K.epsilon())
+    return recall
+
+def precision(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+def f1(y_true, y_pred):
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
+    return 2*((p*r)/(p+r+K.epsilon()))
+
+def weighted_binary_crossentropy(y_true, y_pred):
+    b_ce = K.binary_crossentropy(y_true, y_pred)
+    one_weight = 0.99
+    zero_weight = 0.01
+
+    weight_vector = y_true * one_weight + (1. - y_true) * zero_weight
+    weighted_b_ce = weight_vector * b_ce
+    return K.mean(weighted_b_ce)
 
 def get_model(shape, channels):
     inputs = Input(shape=(*shape, channels))
@@ -45,6 +71,7 @@ def get_model(shape, channels):
     outputs = Conv2D(filters=1, kernel_size=1, activation='sigmoid')(conv_9_2)
     model = Model(inputs=inputs, outputs=outputs, name="unet")
     
-    model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy')
+    # model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy')
+    model.compile(optimizer=Adam(lr=1e-4), loss=weighted_binary_crossentropy, metrics=[f1, precision, recall])
     
     return model

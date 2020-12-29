@@ -13,7 +13,7 @@ class Generator(Sequence):
         self.shuffle = shuffle
         self.input_size = input_size
         self.output_size = output_size
-        self.indices = np.arange(len(self.imgs))
+        self.indices = np.arange(len(self.imgs) * 48)
         self.on_epoch_end()
 
     def on_epoch_end(self):
@@ -21,6 +21,7 @@ class Generator(Sequence):
             np.random.shuffle(self.indices)
     
     def __len__(self):
+        # 48 because we have 48 slices per images
         return len(self.indices) // self.batch_size
 
     # Let's use the same function for 2d and 3d construction of slices
@@ -59,6 +60,25 @@ class Generator(Sequence):
 
 
     def __get_data(self, indices):
+        X_res = []
+        Y_res = []
+        for idx in indices:
+            img_idx, img_slice = idx
+
+            gt = self.gts[img_idx]
+            slice = self.imgs[img_idx]
+            Y = np.array(resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1))
+            X = np.array((
+                np.pad(resize(nib.load(slice[0]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0))),
+                np.pad(resize(nib.load(slice[1]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0)))))
+            X, Y = self.__construct_slices([Y], [X], dimension=2)
+            X = X[img_slice]
+            Y = Y[img_slice]
+            X_res.append(X)
+            Y_res.append(Y)
+        return np.array(X_res), np.array(Y_res)
+            
+        """    
         gts = self.gts[indices]
         imgs = self.imgs[indices]
 
@@ -75,8 +95,11 @@ class Generator(Sequence):
         np.random.shuffle(indices)
 
         return X_slices[indices], Y_slices[indices]
+        """
 
     def __getitem__(self, index):
         indices = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
+        # Creates tuple of (image index, image slice) => 5th slice of 1st image for instance
+        indices = [(indice // 48, indice % 48) for indice in indices]
         X, Y = self.__get_data(indices)
         return X, Y

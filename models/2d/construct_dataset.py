@@ -20,12 +20,12 @@ def construct_dataset(path):
 
     singapore = root / "Singapore"
     ultrecht = root / "Utrecht"
-    ge3t = root / "GE3T"
+    # ge3t = root / "GE3T"
 
     for d in singapore.iterdir():
         fill_dataset(gts, slices, d)
     for d in ultrecht.iterdir():
         fill_dataset(gts, slices, d)
-    for d in ge3t.iterdir():
-        fill_dataset(gts, slices, d) 
+    """ for d in ge3t.iterdir():
+        fill_dataset(gts, slices, d) """ 
     return np.array(gts), np.array(slices)
