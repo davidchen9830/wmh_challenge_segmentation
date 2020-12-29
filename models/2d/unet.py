@@ -71,7 +71,7 @@ def get_model(shape, channels):
     outputs = Conv2D(filters=1, kernel_size=1, activation='sigmoid')(conv_9_2)
     model = Model(inputs=inputs, outputs=outputs, name="unet")
     
-    # model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy')
-    model.compile(optimizer=Adam(lr=1e-4), loss=weighted_binary_crossentropy, metrics=[f1, precision, recall])
+    model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=[f1, precision, recall])
+    # model.compile(optimizer=Adam(lr=1e-4), loss=weighted_binary_crossentropy, metrics=[f1, precision, recall])
     
     return model

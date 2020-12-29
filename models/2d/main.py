@@ -1,4 +1,5 @@
 import sys
+from slices_generator import SlicesGenerator
 from generator import Generator
 from construct_dataset import construct_dataset
 from unet import get_model
@@ -10,10 +11,9 @@ def main(path):
 
     # Dataset
     gts, slices = construct_dataset(path)
-    gts_train, gts_val, slices_train, slices_val = train_test_split(gts, slices, test_size=0.2, random_state=42)
     # Generators
-    train_gen = Generator(gts_train, slices_train, batch_size=1, shuffle=True)
-    val_gen = Generator(gts_val, slices_val, batch_size=1, shuffle=True)
+    train_gen = Generator(gts, slices, batch_size=1, shuffle=True)
+    val_gen = Generator(gts, slices, batch_size=1, shuffle=True, validation=True)
     # Models
     model = get_model((572, 572), 3)
     checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
