@@ -1,12 +1,13 @@
 import numpy as np
 import nibabel as nib
+from utils import pad
 from tensorflow.keras.utils import Sequence
 
 from skimage.transform import resize
 
 class Generator(Sequence):
     def __init__(self, gts_paths, img_paths, batch_size=1, shuffle=True,
-                input_size=572, output_size=388, K_fold = 5, validation=False, slices_per_img=48):
+                input_size=572, output_size=388, K_fold = 5, validation=False, slices_per_img=48, split_slices=True):
         assert(len(gts_paths) == len(img_paths))
         self.size = len(gts_paths)
         
@@ -19,6 +20,7 @@ class Generator(Sequence):
         self.K = K_fold
         self.validation = validation
         self.slices_per_img = slices_per_img
+        self.split_slices = split_slices
         
         self.last_validation_idx = 0
         self.on_epoch_end()
@@ -51,9 +53,9 @@ class Generator(Sequence):
         self.validation_imgs = np.array(validation_imgs)
 
         if self.validation:
-            self.indices = np.arange(len(self.validation_gts) * self.slices_per_img)
+            self.indices = np.arange(len(self.validation_gts) * (self.slices_per_img if self.split_slices else 1))
         else:
-            self.indices = np.arange(len(self.training_gts) * self.slices_per_img)
+            self.indices = np.arange(len(self.training_gts) * (self.slices_per_img if self.split_slices else 1))
 
         if self.shuffle == True:
             np.random.shuffle(self.indices)
@@ -97,49 +99,56 @@ class Generator(Sequence):
 
 
     def __get_data(self, indices):
-        X_res = []
-        Y_res = []
-        for idx in indices:
-            img_idx, img_slice = idx
+        if self.split_slices:
+            X_res = []
+            Y_res = []
+            for idx in indices:
+                img_idx, img_slice = idx
+                if self.validation:
+                    gt = self.validation_gts[img_idx]
+                    slice = self.validation_imgs[img_idx]
+                else:
+                    gt = self.training_gts[img_idx]
+                    slice = self.training_imgs[img_idx]
+                Y = np.array(resize(nib.load(gt).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1))
+                X = np.array([
+                    resize(nib.load(slice[0]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1),
+                    resize(nib.load(slice[1]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1)])
+                # Here normally X is size [2, 388, 388, 48]
+                X = pad(X, self.input_size, self.output_size)
+                X, Y = self.__construct_slices([Y], [X], dimension=2)
+                X = X[img_slice]
+                Y = Y[img_slice]
+                X_res.append(X)
+                Y_res.append(Y)
+            return np.array(X_res), np.array(Y_res)
+        else:
             if self.validation:
-                gt = self.validation_gts[img_idx]
-                slice = self.validation_imgs[img_idx]
+                gts = self.validation_gts[indices]
+                imgs = self.validation_imgs[indices]
             else:
-                gt = self.training_gts[img_idx]
-                slice = self.training_imgs[img_idx]
-            Y = np.array(resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1))
-            X = np.array((
-                np.pad(resize(nib.load(slice[0]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0))),
-                np.pad(resize(nib.load(slice[1]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0)))))
-            X, Y = self.__construct_slices([Y], [X], dimension=2)
-            X = X[img_slice]
-            Y = Y[img_slice]
-            X_res.append(X)
-            Y_res.append(Y)
-        return np.array(X_res), np.array(Y_res)
-            
-        """    
-        gts = self.gts[indices]
-        imgs = self.imgs[indices]
+                gts = self.training_gts[indices]
+                imgs = self.validation_imgs[indices]
 
-        # The chain is nibabel image => Resize into 388, 388 (unet output) => Pad to 572, 572 (unet input)
-        # We pad values with 0, but we could do something else aswell
-        Y = np.array([resize(nib.load(gt).get_fdata(), (388, 388, 48), preserve_range=True, order=1) for gt in gts])
-        X = np.array([(
-            np.pad(resize(nib.load(slice[0]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0))),
-            np.pad(resize(nib.load(slice[1]).get_fdata(), (388, 388, 48), preserve_range=True, order=1), ((92,92), (92,92), (0,0)))) for slice in imgs
-            ])
-        X_slices, Y_slices = self.__construct_slices(Y, X, dimension=2)
-        # Should we shuffle ? Probably I guess
-        indices = np.arange(len(X_slices))
-        np.random.shuffle(indices)
+            # The chain is nibabel image => Resize into 388, 388 (unet output) => Pad to 572, 572 (unet input)
+            # We pad values with 0, but we could do something else aswell
+            Y = np.array([resize(nib.load(gt).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1) for gt in gts])
+            X = np.array([(
+                resize(nib.load(slice[0]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1),
+                resize(nib.load(slice[1]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1)) for slice in imgs
+                ])
+            X = pad(X, self.input_size, self.output_size)
+            X_slices, Y_slices = self.__construct_slices(Y, X, dimension=2)
+            # Should we shuffle ? Probably I guess
+            indices = np.arange(len(X_slices))
+            np.random.shuffle(indices)
 
-        return X_slices[indices], Y_slices[indices]
-        """
+            return X_slices[indices], Y_slices[indices]
 
     def __getitem__(self, index):
         indices = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
         # Creates tuple of (image index, image slice) => 5th slice of 1st image for instance
-        indices = [(indice // 48, indice % 48) for indice in indices]
+        if self.split_slices:
+            indices = [(indice // 48, indice % 48) for indice in indices]
         X, Y = self.__get_data(indices)
         return X, Y
