@@ -128,7 +128,7 @@ class Generator(Sequence):
                 imgs = self.validation_imgs[indices]
             else:
                 gts = self.training_gts[indices]
-                imgs = self.validation_imgs[indices]
+                imgs = self.training_imgs[indices]
 
             # The chain is nibabel image => Resize into 388, 388 (unet output) => Pad to 572, 572 (unet input)
             # We pad values with 0, but we could do something else aswell
@@ -137,7 +137,11 @@ class Generator(Sequence):
                 resize(nib.load(slice[0]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1),
                 resize(nib.load(slice[1]).get_fdata(), (self.output_size, self.output_size, self.slices_per_img), preserve_range=True, order=1)) for slice in imgs
                 ])
+            X = X.reshape((-1, self.output_size, self.output_size, self.slices_per_img))
             X = pad(X, self.input_size, self.output_size)
+            # Nb samples, NB images, h, w, channels
+            # Here 2 are FLAIR and T1
+            X = X.reshape((-1, 2, self.input_size, self.input_size, self.slices_per_img))
             X_slices, Y_slices = self.__construct_slices(Y, X, dimension=2)
             # Should we shuffle ? Probably I guess
             indices = np.arange(len(X_slices))

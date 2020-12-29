@@ -12,8 +12,8 @@ def main(path):
     # Dataset
     gts, slices = construct_dataset(path)
     # Generators
-    train_gen = Generator(gts, slices, batch_size=1, shuffle=True)
-    val_gen = Generator(gts, slices, batch_size=1, shuffle=True, validation=True)
+    train_gen = Generator(gts, slices, batch_size=1, shuffle=True, split_slices=True)
+    val_gen = Generator(gts, slices, batch_size=1, shuffle=True, validation=True, split_slices=True)
     # Models
     model = get_model((572, 572), 3)
     checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
