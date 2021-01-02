@@ -75,10 +75,6 @@ class Generator(Sequence):
                     curr_slice = ((slices[i][component])[:, :, channel]).reshape(h1, w1, 1)
                     new_slice = np.concatenate((new_slice, curr_slice), axis=-1)
                 # Check stacking
-                # Models asks for (w, h, 3)
-                # So if we have a missing channel, add a dummy one
-                if dimension == 2:
-                    new_slice = np.concatenate((new_slice, np.zeros((h1, w1, 1))), axis=-1)
                 X.append(new_slice)
                 gt = ((gts[i])[:, :, channel]).reshape(gt_h, gt_w, 1)
                 Y.append(gt)
@@ -95,7 +91,8 @@ class Generator(Sequence):
         # If it is input data
         img = np.expand_dims(img, axis=0) # This will lead to (1, 388, 388, c)
         img = np.swapaxes(img, 0, 3) # Lead to (c, 388, 388, 1)
-        img = pad(img, self.input_size, self.output_size)
+        if (self.input_size != self.output_size):
+            img = pad(img, self.input_size, self.output_size)
         return img
 
     def __get_data(self, indices):

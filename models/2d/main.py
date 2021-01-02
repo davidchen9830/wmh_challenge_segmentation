@@ -14,10 +14,11 @@ def main():
     img_idx_slices = np.load('X_train_slices.npy')
     
     # Generators
-    train_gen = Generator(gts, slices, img_idx_slices, batch_size=4)
-    val_gen = Generator(gts, slices, img_idx_slices, batch_size=4, validation=True)
+    train_gen = Generator(gts, slices, img_idx_slices, batch_size=48, input_size=200, output_size=200)
+    val_gen = Generator(gts, slices, img_idx_slices, batch_size=48, input_size=200, output_size=200, validation=True)
     # Models
-    model = get_model((572, 572), 3)
+    model = get_model((200, 200), 2)
+    # model.load_weights('best_model.h5')
     checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
     model.fit(
         x = train_gen,
