@@ -3,14 +3,19 @@ import nibabel as nib
 from utils import pad
 from tensorflow.keras.utils import Sequence
 
+import skimage
+import skimage.morphology
+import skimage.io
+
 from skimage.transform import resize
 
 class Generator(Sequence):
     def __init__(self, gts_paths, img_paths, img_idx_slices, batch_size=1,
-                input_size=572, output_size=388, K_fold = 5, validation=False):
+                input_size=572, output_size=388, K_fold = 5, validation=False, preprocess=False):
         assert(len(gts_paths) == len(img_paths))
         self.size = len(img_idx_slices)
         self.img_idx_slices = img_idx_slices
+        self.preprocess = preprocess
 
         self.gts = gts_paths
         self.imgs = img_paths
@@ -53,7 +58,7 @@ class Generator(Sequence):
     # Let's use the same function for 2d and 3d construction of slices
     # The argument to specify is dimension, by default 2d slice
     # Even though 
-    def __construct_slices(self, gts, slices, dimension=2):
+    def __construct_slices(self, gts, slices):
         X = []
         Y = []
         # Typically this is like [FLAIR, T1, preprocess?]
@@ -85,15 +90,37 @@ class Generator(Sequence):
         img = (nib.load(path)).get_fdata(dtype=np.float32)
         _, _, channels = img.shape
         img = resize(img, (self.output_size, self.output_size, channels), preserve_range=True, order=1)
+        max_value = np.max(img)
+        # Normalize
+        img = img / max_value 
         # If it is ground truth, we need the data to be (388, 388, channels) nothing more
         if labels:
             return img
         # If it is input data
-        img = np.expand_dims(img, axis=0) # This will lead to (1, 388, 388, c)
-        img = np.swapaxes(img, 0, 3) # Lead to (c, 388, 388, 1)
+        img = np.expand_dims(img, axis=0) # This will lead to (1, 200, 200, c)
+        img = np.swapaxes(img, 0, 3) # Lead to (c, 200, 200, 1)
         if (self.input_size != self.output_size):
             img = pad(img, self.input_size, self.output_size)
         return img
+
+    # The given image should be FLAIR - position [0]
+    def __construct_preprocess(self, img):
+        # c, 200, 200, 1
+        channels, _, _, _ = img.shape
+        img = np.swapaxes(img, 0, 3)
+        # 1, 200, 200, c
+        disk = skimage.morphology.disk(2.5)
+        # slices morph need to be shape c, 200, 200, 1
+        slices_morph = []
+        for c in range(channels):
+            s = img[0][:, :, c]
+            morph = skimage.morphology.dilation(s, disk)
+            top_hat = skimage.util.invert(morph - s)
+            slices_morph.append(top_hat)
+        # Should be 48, 200, 200, 1
+        slices_morph = np.array(slices_morph)
+        slices_morph = slices_morph.reshape((1, channels, 200, 200, 1))
+        return slices_morph
 
     def __get_data(self, indices):
         X_res = []
@@ -112,11 +139,13 @@ class Generator(Sequence):
             X = np.array([
                 self.__load_data(img[0], labels=False),
                 self.__load_data(img[1], labels=False)])
-            # X is now 2, c, 572, 572, 1
+            if self.preprocess:
+                X = np.append(X, self.__construct_preprocess(X[0]), axis=0)
+            # X is now [2, c, 200, 200, 1] or [3, c, 200, 200, 1]
             X = np.swapaxes(X, 1, 4)
             X = np.swapaxes(X, 0, 1)
-            # Making it 1, 2, 572, 572, c for the function
-            X_slices, Y_slices = self.__construct_slices([Y], X, dimension=2)
+            # Making it 1, 2, 200, 200, c for the function
+            X_slices, Y_slices = self.__construct_slices([Y], X)
             for s in slices:
                 X_slice = X_slices[s]
                 Y_slice = Y_slices[s]
