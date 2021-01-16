@@ -52,7 +52,7 @@ class Generator(Sequence):
         self.indices = np.arange(len(validation_samples)) if self.validation else np.arange(len(training_samples))
         # The data are already shuffled, no use to shuffle it multiple times
     
-    def __len__(self):
+    def __len__(self): # The number of batches
         return int(np.ceil(len(self.indices) / float(self.batch_size)))
 
     # Let's use the same function for 2d and 3d construction of slices
@@ -90,7 +90,10 @@ class Generator(Sequence):
         img = (nib.load(path)).get_fdata(dtype=np.float32)
         _, _, channels = img.shape
         img = resize(img, (self.output_size, self.output_size, channels), preserve_range=True, order=1)
-        # If it is ground truth, we need the data to be (388, 388, channels) nothing more
+        # FIXME
+        max_value = np.max(img)
+        img = img / max_value
+        # If it is ground truth, we need the data to be (200, 200, channels) nothing more
         if labels:
             return img
         # If it is input data
@@ -159,4 +162,5 @@ class Generator(Sequence):
             indices = self.training_samples[indices]
 
         X, Y = self.__get_data(indices)
+        print(X.shape)
         return X, Y
