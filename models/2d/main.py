@@ -26,7 +26,7 @@ def main(preprocess=False):
     model.fit(
         x = train_gen,
         batch_size = 1,
-        epochs=100,
+        epochs=20,
         callbacks=[checkpoint],
         validation_data= val_gen
     )

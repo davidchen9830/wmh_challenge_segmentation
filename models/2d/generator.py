@@ -90,9 +90,6 @@ class Generator(Sequence):
         img = (nib.load(path)).get_fdata(dtype=np.float32)
         _, _, channels = img.shape
         img = resize(img, (self.output_size, self.output_size, channels), preserve_range=True, order=1)
-        max_value = np.max(img)
-        # Normalize
-        img = img / max_value 
         # If it is ground truth, we need the data to be (388, 388, channels) nothing more
         if labels:
             return img
@@ -162,5 +159,4 @@ class Generator(Sequence):
             indices = self.training_samples[indices]
 
         X, Y = self.__get_data(indices)
-        print(X.shape, Y.shape)
         return X, Y
