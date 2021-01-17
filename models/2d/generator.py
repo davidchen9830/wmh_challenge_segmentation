@@ -91,8 +91,8 @@ class Generator(Sequence):
         _, _, channels = img.shape
         img = resize(img, (self.output_size, self.output_size, channels), preserve_range=True, order=1)
         # FIXME
-        max_value = np.max(img)
-        img = img / max_value
+#        max_value = np.max(img)
+#       img = img / max_value
         # If it is ground truth, we need the data to be (200, 200, channels) nothing more
         if labels:
             return img
