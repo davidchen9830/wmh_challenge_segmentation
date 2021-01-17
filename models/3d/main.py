@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from data_generator import Generator
+from generator import Generator
 from construct_dataset import construct_dataset
 from unet import get_model
 from keras.callbacks import ModelCheckpoint
