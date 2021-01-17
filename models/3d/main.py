@@ -17,7 +17,7 @@ def main(data_path, preprocess=False):
     # Models
     model = get_model((200, 200, 48), 2 if not preprocess else 3)
     # model.load_weights('best_model.h5')
-    checkpoint = ModelCheckpoint(".h5", save_best_only=True)
+    checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
     if preprocess:
         checkpoint = ModelCheckpoint("best_model_preprocess.h5", save_best_only=True)
 
