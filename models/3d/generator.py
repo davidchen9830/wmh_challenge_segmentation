@@ -1,37 +1,33 @@
 import numpy as np
-import nibabel as nib
-from utils import pad
 from tensorflow.keras.utils import Sequence
+import random
 
-import skimage
-import skimage.morphology
-import skimage.io
-
-from skimage.transform import resize
-
+# This is a generator that load everything in RAM
 class Generator(Sequence):
-    def __init__(self, gts_paths, img_paths, img_idx_slices, batch_size=1,
-                input_size=572, output_size=388, K_fold = 5, validation=False, preprocess=False):
-        assert(len(gts_paths) == len(img_paths))
-        self.size = len(img_idx_slices)
-        self.img_idx_slices = img_idx_slices
-        self.preprocess = preprocess
+    def __init__(self, data_path, gts, imgs,
+                batch_size=1,
+                input_size=200, output_size=200, K_fold = 5, 
+                validation = False, preprocess=False):
 
-        self.gts = gts_paths
-        self.imgs = img_paths
+        # [Individu_0, individu_1....]
+        # [n, 256, 256, 48, 2]
+        # [N, 256, 256, 2]
+        self.preprocess = preprocess
+        self.data_path = data_path
+        self.gts = gts
+        self.imgs = imgs
+        self.size = len(gts)
+
         self.batch_size = batch_size
         self.input_size = input_size
         self.output_size = output_size
         self.K = K_fold
+
         self.validation = validation
-        
         self.last_validation_idx = 0
         self.on_epoch_end()
 
     def on_epoch_end(self):
-        # We want to build a K_fold cross validation generator
-        # At each epoch, we will change training and validation data
-
         validation_size = self.size // self.K
         training_size = self.size - validation_size
 
@@ -39,124 +35,44 @@ class Generator(Sequence):
         training_samples = []
 
         for i in range(self.last_validation_idx, self.last_validation_idx + validation_size):
-            validation_samples.append(self.img_idx_slices[i % self.size])
+            validation_samples.append(i % self.size)
 
         self.last_validation_idx = (self.last_validation_idx + validation_size) % self.size
 
         for i in range(self.last_validation_idx, self.last_validation_idx + training_size):
-            training_samples.append(self.img_idx_slices[i % self.size])
+            training_samples.append(i % self.size)
         
         self.validation_samples = np.array(validation_samples)
         self.training_samples = np.array(training_samples)
 
         self.indices = np.arange(len(validation_samples)) if self.validation else np.arange(len(training_samples))
-        # The data are already shuffled, no use to shuffle it multiple times
-    
+
     def __len__(self):
         return int(np.ceil(len(self.indices) / float(self.batch_size)))
 
-    # Let's use the same function for 2d and 3d construction of slices
-    # The argument to specify is dimension, by default 2d slice
-    # Even though 
-    def __construct_slices(self, gts, slices):
-        X = []
-        Y = []
-        # Typically this is like [FLAIR, T1, preprocess?]
-        # With shapes like       [(h, w, c), ....]
-        nb_channels = len(slices[0]) # Get the number of components
-        sz = len(gts)
-        for i in range(sz):
-            gt_h, gt_w, c1 = gts[i].shape
-            for channel in range(c1):
-                # First slice take the first component
-                h1, w1, c1 = slices[i][0].shape
-                new_slice = (np.array((slices[i][0])[:, :, channel])).reshape(h1, w1, 1)
-                # This lead to new_slice to look like this as a volume
-                """ flair, t1, preprocess ?
-                    flair, t1, preprocess ?
-                    flair, t1, preprocess ?
-                """
-                for component in range(1, nb_channels):
-                    curr_slice = ((slices[i][component])[:, :, channel]).reshape(h1, w1, 1)
-                    new_slice = np.concatenate((new_slice, curr_slice), axis=-1)
-                # Check stacking
-                X.append(new_slice)
-                gt = ((gts[i])[:, :, channel]).reshape(gt_h, gt_w, 1)
-                Y.append(gt)
-        return np.array(X), np.array(Y)
-
-    def __load_data(self, path, labels=True):
-        # After data exploration, labels are on float32 and inputs on uint16, let's make it then
-        img = (nib.load(path)).get_fdata(dtype=np.float32)
-        _, _, channels = img.shape
-        img = resize(img, (self.output_size, self.output_size, channels), preserve_range=True, order=1)
-        # If it is ground truth, we need the data to be (388, 388, channels) nothing more
-        if labels:
-            return img
-        # If it is input data
-        img = np.expand_dims(img, axis=0) # This will lead to (1, 200, 200, c)
-        img = np.swapaxes(img, 0, 3) # Lead to (c, 200, 200, 1)
-        if (self.input_size != self.output_size):
-            img = pad(img, self.input_size, self.output_size)
-        return img
-
-    # The given image should be FLAIR - position [0]
-    def __construct_preprocess(self, img):
-        # c, 200, 200, 1
-        channels, _, _, _ = img.shape
-        img = np.swapaxes(img, 0, 3)
-        # 1, 200, 200, c
-        disk = skimage.morphology.disk(2.5)
-        # slices morph need to be shape c, 200, 200, 1
-        slices_morph = []
-        for c in range(channels):
-            s = img[0][:, :, c]
-            morph = skimage.morphology.dilation(s, disk)
-            top_hat = skimage.util.invert(morph - s)
-            slices_morph.append(top_hat)
-        # Should be 48, 200, 200, 1
-        slices_morph = np.array(slices_morph)
-        slices_morph = slices_morph.reshape((1, channels, 200, 200, 1))
-        return slices_morph
-
-    def __get_data(self, indices):
-        X_res = []
-        Y_res = []
-        dic = {}
-        for img_idx, img_slice in indices:
-            if img_idx in dic:
-                dic[img_idx].append(img_slice)
-            else:
-                dic[img_idx] = [img_slice]
-        # This will reduce the number of times a single image is loaded
-        for img_idx, slices in dic.items():
-            gt = self.gts[img_idx]
-            img = self.imgs[img_idx]
-            Y = np.array(self.__load_data(gt, labels=True))
-            X = np.array([
-                self.__load_data(img[0], labels=False),
-                self.__load_data(img[1], labels=False)])
-            if self.preprocess:
-                X = np.append(X, self.__construct_preprocess(X[0]), axis=0)
-            # X is now [2, c, 200, 200, 1] or [3, c, 200, 200, 1]
-            X = np.swapaxes(X, 1, 4)
-            X = np.swapaxes(X, 0, 1)
-            # Making it 1, 2, 200, 200, c for the function
-            X_slices, Y_slices = self.__construct_slices([Y], X)
-            for s in slices:
-                X_slice = X_slices[s]
-                Y_slice = Y_slices[s]
-                X_res.append(X_slice)
-                Y_res.append(Y_slice)
-        return np.array(X_res), np.array(Y_res)
-
     def __getitem__(self, index):
         indices = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
-        # Creates tuple of (image index, image slice) => 5th slice of 1st image for instance
         if self.validation:
             indices = self.validation_samples[indices]
         else:
             indices = self.training_samples[indices]
-
-        X, Y = self.__get_data(indices)
+        X, Y = self.__getdata(indices)
         return X, Y
+
+    def __getdata(self, indices):
+        # We need X, Y
+        # This function should return
+        ids = self.imgs[indices]
+        if not self.preprocess:
+            imgs = np.array([
+                np.load(self.data_path + '/data/' + str(idx) + '.npy') for idx in ids
+            ])
+        else:
+            imgs = np.array([
+                np.load(self.data_path + '/data/' + str(idx) + '_preprocessed' + '.npy') for idx in ids
+            ])
+
+        gts = np.array([
+            np.load(self.data_path + '/labels/' + str(idx) + '.npy') for idx in ids
+        ])
+        return imgs, gts
