@@ -4,19 +4,14 @@ import random
 
 # This is a generator that load everything in RAM
 class Generator(Sequence):
-    def __init__(self, data_path, gts, imgs,
-                batch_size=1,
+    def __init__(self, data_path, img_idx_slices,
+                batch_size=16,
                 input_size=200, output_size=200, K_fold = 5, 
                 validation = False, preprocess=False):
-
-        # [Individu_0, individu_1....]
-        # [n, 256, 256, 48, 2]
-        # [N, 256, 256, 2]
         self.preprocess = preprocess
         self.data_path = data_path
-        self.gts = gts
-        self.imgs = imgs
-        self.size = len(gts)
+        self.img_idx_slices = img_idx_slices
+        self.size = len(img_idx_slices)
 
         self.batch_size = batch_size
         self.input_size = input_size
@@ -35,12 +30,12 @@ class Generator(Sequence):
         training_samples = []
 
         for i in range(self.last_validation_idx, self.last_validation_idx + validation_size):
-            validation_samples.append(i % self.size)
+            validation_samples.append(self.img_idx_slices[i % self.size])
 
         self.last_validation_idx = (self.last_validation_idx + validation_size) % self.size
 
         for i in range(self.last_validation_idx, self.last_validation_idx + training_size):
-            training_samples.append(i % self.size)
+            training_samples.append(self.img_idx_slices[i % self.size])
         
         self.validation_samples = np.array(validation_samples)
         self.training_samples = np.array(training_samples)
@@ -60,19 +55,15 @@ class Generator(Sequence):
         return X, Y
 
     def __getdata(self, indices):
-        # We need X, Y
-        # This function should return
-        ids = self.imgs[indices]
-        if not self.preprocess:
-            imgs = np.array([
-                np.load(self.data_path + '/data/' + str(idx) + '.npy') for idx in ids
-            ])
-        else:
-            imgs = np.array([
-                np.load(self.data_path + '/data/' + str(idx) + '_preprocessed' + '.npy') for idx in ids
-            ])
-
-        gts = np.array([
-            np.load(self.data_path + '/labels/' + str(idx) + '.npy') for idx in ids
-        ])
-        return imgs, gts
+        # indices looks like [[img idx, img_sample]...]
+        gts = []
+        imgs = []
+        for idx, img_sample in indices:
+            gts.append(np.load(self.data_path + '/labels/' + str(idx) + '_' + str(img_sample) + '.npy'))
+            if not self.preprocess:
+                imgs.append(np.load(
+                    self.data_path + '/data/' + str(idx) + '_' + str(img_sample) + '.npy'))
+            else:
+                imgs.append(np.load(
+                    self.data_path + '/data/' + str(idx) + '_' + str(img_sample) + '_preprocessed.npy'))
+        return np.array(imgs), np.array(gts)

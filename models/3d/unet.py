@@ -98,8 +98,8 @@ def get_model(shape, channels):
     inputs = Input(shape=(*shape, channels))
 
     def down_layers(inputs, filters, ks):
-        conv_1 = Conv3D(filters=filters, kernel_size=ks, padding='same', activation='relu')(inputs)
-        conv_2 = Conv3D(filters=filters, kernel_size = ks, padding='same', activation='relu')(conv_1)
+        conv_1 = Conv3D(filters=filters, kernel_size=ks, kernel_initializer='he_normal', padding='same', activation='relu')(inputs)
+        conv_2 = Conv3D(filters=filters, kernel_size = ks, kernel_initializer='he_normal', padding='same', activation='relu')(conv_1)
         pool = MaxPool3D(pool_size=(2,2,2))(conv_2)
         return pool, conv_2
 
@@ -108,17 +108,17 @@ def get_model(shape, channels):
         ch, cw, cc = get_crop_shape(conv, conv_tr)
         cropped = Cropping3D((ch, cw, cc))(conv)
         concat = Concatenate()([conv_tr, cropped])
-        conv_1 = Conv3D(filters=filters, kernel_size=(3,3,3), activation='relu', padding='same')(concat)
-        conv_2 = Conv3D(filters=filters, kernel_size=(3,3,3), activation='relu', padding='same')(conv_1)
+        conv_1 = Conv3D(filters=filters, kernel_size=(3,3,3), kernel_initializer='he_normal', activation='relu', padding='same')(concat)
+        conv_2 = Conv3D(filters=filters, kernel_size=(3,3,3), kernel_initializer='he_normal', activation='relu', padding='same')(conv_1)
         return conv_2
 
-    pool_1, conv_1_2 = down_layers(inputs, 64, (5,5,3))
+    pool_1, conv_1_2 = down_layers(inputs, 64, (5,5,5))
     pool_2, conv_2_2 = down_layers(pool_1, 96, (3,3,3))
     pool_3, conv_3_2 = down_layers(pool_2, 128, (3,3,3))
     pool_4, conv_4_2 = down_layers(pool_3, 256, (3,3,3))
 
-    conv_5_1 = Conv3D(512, (3,3,3), padding='same', activation='relu')(pool_4)
-    conv_5_2 = Conv3D(512, (3,3,3), padding='same', activation='relu')(conv_5_1)
+    conv_5_1 = Conv3D(512, (3,3,3), padding='same', activation='relu', kernel_initializer='he_normal')(pool_4)
+    conv_5_2 = Conv3D(512, (3,3,3), padding='same', activation='relu', kernel_initializer='he_normal')(conv_5_1)
 
     conv_6_2 = up_layers(conv_5_2, conv_4_2, 256)
     conv_7_2 = up_layers(conv_6_2, conv_3_2, 128)
