@@ -9,8 +9,8 @@ class Generator(Sequence):
         Create a new generator.
 
         Parameters:
-        X (list(np.array(n_slices, 200, 200, n_filters))): The individual's data
-        y (list(np.array(n_slices, 200, 200,))): The individual's segmentations
+        X (list(np.array(n_slices, 208, 208, n_filters))): The individual's data
+        y (list(np.array(n_slices, 208, 208,))): The individual's segmentations
         preprocess (bool): Whether to have the preprocess
         batch_size (int): The batch size
         shuffle (bool): Whether to shuffle the dataset
@@ -64,24 +64,32 @@ class Generator(Sequence):
 
 
 class Generator2D(Generator):
+    @staticmethod
+    def generate_data(slices, slice_index, preprocess):
+        return slices[slice_index, :, :, 0:({False: 2, True: 3}[preprocess])]
+
     def get_data(self, individual, slice_index):
-        return self.X[individual][slice_index, :, :, 0:({False: 2, True: 3}[self.preprocess])], self.y[individual][slice_index]
+        return self.generate_data(self.X[individual], slice_index, self.preprocess), self.y[individual][slice_index]
 
 
 class Generator3D(Generator):
-    def get_data(self, individual, slice_index):
+    @staticmethod
+    def generate_data(slices, slice_index, preprocess):
         X = []
-        n_channels = ({False: 2, True: 3}[self.preprocess])
+        n_channels = ({False: 2, True: 3}[preprocess])
         if slice_index == 0:
-            X.append(np.zeros(self.X[individual][slice_index, :, :, 0:n_channels].shape))
+            X.append(np.zeros(slices[slice_index, :, :, 0:n_channels].shape))
         else:
-            X.append(self.X[individual][slice_index - 1, :, :, 0:n_channels])
-        X.append(self.X[individual][slice_index, :, :, 0:n_channels])
-        if slice_index == len(self.X[individual]) - 1:
-            X.append(np.zeros(self.X[individual][slice_index, :, :, 0:n_channels].shape))
+            X.append(slices[slice_index - 1, :, :, 0:n_channels])
+        X.append(slices[slice_index, :, :, 0:n_channels])
+        if slice_index == len(slices) - 1:
+            X.append(np.zeros(slices[slice_index, :, :, 0:n_channels].shape))
         else:
-            X.append(self.X[individual][slice_index + 1, :, :, 0:n_channels])
-        return np.concatenate(X, axis=-1), self.y[individual][slice_index]
+            X.append(slices[slice_index + 1, :, :, 0:n_channels])
+        return np.concatenate(X, axis=-1)
+
+    def get_data(self, individual, slice_index):
+        return self.generate_data(self.X[individual], slice_index, self.preprocess), self.y[individual][slice_index]
 
 
 class KFold(Sequence):

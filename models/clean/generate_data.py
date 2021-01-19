@@ -75,28 +75,28 @@ def compute_data(slices_path, gts_path):
     _, _, fl_c = fl.shape
     _, _, gt_c = gt.shape
 
-    t1 = skimage.transform.resize(t1, (200, 200, t1_c))
-    fl = skimage.transform.resize(fl, (200, 200, fl_c))
-    gt = skimage.transform.resize(gt, (200, 200, gt_c))
+    t1 = skimage.transform.resize(t1, (208, 208, t1_c))
+    fl = skimage.transform.resize(fl, (208, 208, fl_c))
+    gt = skimage.transform.resize(gt, (208, 208, gt_c))
 
     slices_morph = None
     for s in range(fl_c):
         flair_slice = fl[:, :, s]
         morph = skimage.morphology.dilation(flair_slice, disk)
         top_hat = morph - flair_slice  # skimage.util.invert(morph - flair_slice)
-        top_hat = top_hat.reshape((200, 200, 1))
+        top_hat = top_hat.reshape((208, 208, 1))
         if slices_morph is None:
             slices_morph = top_hat
         else:
             slices_morph = np.concatenate([slices_morph, top_hat], axis=-1)
 
     slices_morph = np.array(slices_morph)
-    slices_morph = slices_morph.reshape((200, 200, fl_c, 1))
+    slices_morph = slices_morph.reshape((208, 208, fl_c, 1))
 
-    t1 = t1.reshape((200, 200, t1_c, 1))
-    fl = fl.reshape((200, 200, fl_c, 1))
+    t1 = t1.reshape((208, 208, t1_c, 1))
+    fl = fl.reshape((208, 208, fl_c, 1))
 
-    gt = gt.reshape((200, 200, gt_c, 1))
+    gt = gt.reshape((208, 208, gt_c, 1))
     pre_processed = np.concatenate([t1, fl, slices_morph], axis=-1)
 
     # (h, w, nb_slices, channels)

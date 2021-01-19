@@ -3,39 +3,59 @@ import sys
 from pathlib import Path
 
 import tensorflow as tf
+import numpy as np
 from generator import Generator2D, Generator3D, KFold
 from unet import get_model
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 
-def main(path, preprocess, dimensions):
+def main(path, preprocess, dimensions, weights=None, results=None):
     assert preprocess == 0 or preprocess == 1
     assert dimensions == 2 or dimensions == 3
     with path.open('rb') as file:
         dataset = pickle.load(file)
 
-    generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1,
-                                                             batch_size=10)
-    train_gen = KFold(generator, folds=5, validation=False)
-    val_gen = KFold(generator, folds=5, validation=True)
+    model = get_model((208, 208), {0: 2, 1: 3}[preprocess] * {2: 1, 3: 3}[dimensions])
+    model.summary()
 
-    # Models
-    model = get_model((200, 200), {0: 2, 1: 3}[preprocess] * {2: 1, 3: 3}[dimensions])
-    # model.load_weights('best_model.h5')
-    checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
-    if preprocess:
-        checkpoint = ModelCheckpoint("best_model_preprocess.h5", save_best_only=True)
+    if weights:
+        model.load_weights(weights)
+        fun = {2: Generator2D, 3: Generator3D}[dimensions]
+        predicted = []
+        for patient, X in zip(dataset['patients'], dataset['X']):
+            print(f'Patient: {patient}')
+            current_predicted = []
+            for slice_index in range(len(X)):
+                current_predicted.append(model.predict(np.expand_dims(fun.generate_data(X, slice_index, preprocess=preprocess == 1), 0)))
+            predicted.append(np.array(current_predicted).squeeze())
 
-    model.fit(
-        x=train_gen,
-        epochs=20,
-        callbacks=[checkpoint],
-        validation_data=val_gen
-    )
+        with open(results, 'wb') as file:
+            pickle.dump(predicted, file)
+    else:
+        generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1,
+                                                                 batch_size=10)
+        train_gen = KFold(generator, folds=5, validation=False)
+        val_gen = KFold(generator, folds=5, validation=True)
+
+        checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
+        if preprocess:
+            checkpoint = ModelCheckpoint("best_model_preprocess.h5", save_best_only=True)
+
+        model.fit(
+            x=train_gen,
+            epochs=20,
+            callbacks=[checkpoint],
+            validation_data=val_gen
+        )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3>")
+    if len(sys.argv) != 4 and len(sys.argv) != 6:
+        print("Usage: main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3> <weights> <results>")
         sys.exit(1)
-    main(Path(sys.argv[1]), preprocess=int(sys.argv[2]), dimensions=int(sys.argv[3]))
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(gpus[0], True)
+    # tf.config.experimental.set_visible_devices([], 'GPU')
+    main(Path(sys.argv[1]), preprocess=int(sys.argv[2]), dimensions=int(sys.argv[3]),
+         weights=sys.argv[4] if len(sys.argv) == 6 else None,
+         results=sys.argv[5] if len(sys.argv) == 6 else None)

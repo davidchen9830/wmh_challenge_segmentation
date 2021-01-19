@@ -57,9 +57,7 @@ def get_model(shape, channels):
     conv_8_2 = up_layers(conv_7_2, conv_2_2, 96)
     conv_9_2 = up_layers(conv_8_2, conv_1_2, 64)
 
-    ch, cw = get_crop_shape(inputs, conv_9_2)
-    zero_pad = ZeroPadding2D(padding=(ch, cw))(conv_9_2)
-    outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(zero_pad)
+    outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(conv_9_2)
     model = Model(inputs=inputs, outputs=outputs, name='unet')
     model.compile(optimizer=Adam(lr=1e-4), loss=BinaryCrossentropy(),
                   metrics=[tf.keras.metrics.BinaryAccuracy(), tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
