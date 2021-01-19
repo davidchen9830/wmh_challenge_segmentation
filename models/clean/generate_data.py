@@ -53,19 +53,19 @@ def square(image):
     pad_after = diff - pad_before
 
     if w < h:
-        return np.pad(image, ((pad_before, pad_after), (0, 0), (0, 0)))
+        return np.pad(image, ((pad_before, pad_after), (0, 0), (0, 0))), (w, h)
     elif h < w:
-        return np.pad(image, ((0, 0), (pad_before, pad_after), (0, 0)))
+        return np.pad(image, ((0, 0), (pad_before, pad_after), (0, 0))), (w, h)
     else:
-        return image
+        return image, (w, h)
 
 
 def compute_data(slices_path, gts_path):
     print(f'Computing for {gts_path}.')
     disk = skimage.morphology.disk(2)
-    fl = square(nibabel.load(slices_path[0]).get_fdata(dtype=np.float32))
-    t1 = square(nibabel.load(slices_path[1]).get_fdata(dtype=np.float32))
-    gt = square(nibabel.load(gts_path).get_fdata(dtype=np.float32))
+    fl, _ = square(nibabel.load(slices_path[0]).get_fdata(dtype=np.float32))
+    t1, _ = square(nibabel.load(slices_path[1]).get_fdata(dtype=np.float32))
+    gt, (w, h) = square(nibabel.load(gts_path).get_fdata(dtype=np.float32))
 
     fl = (fl - fl.mean()) / fl.std()
     t1 = (t1 - t1.mean()) / t1.std()
@@ -107,35 +107,38 @@ def compute_data(slices_path, gts_path):
     gt[gt < 0] = 0
     pre_processed = np.transpose(pre_processed, (2, 0, 1, 3))
 
-    return pre_processed, gt
+    return pre_processed, gt, (w, h)
 
 
 def compute_set(slices_paths, gts_paths):
-    slices, gts = [], []
+    slices, gts, sizes = [], [], []
     for slices_path, gts_path in zip(slices_paths, gts_paths):
         result = compute_data(slices_path, gts_path)
         slices.append(result[0])
-        gts.append((result[1]))
-    return slices, gts
+        gts.append(result[1])
+        sizes.append(result[2])
+    return slices, gts, sizes
 
 
 def generate_data(path, save_dir):
     (train_slices_paths, train_gts_paths, train_patients), (test_slices_paths, test_gts_paths, test_patients) = construct_dataset(path)
-    train_slices, train_gts = compute_set(train_slices_paths, train_gts_paths)
-    test_slices, test_gts = compute_set(test_slices_paths, test_gts_paths)
+    train_slices, train_gts, train_sizes = compute_set(train_slices_paths, train_gts_paths)
+    test_slices, test_gts, test_sizes = compute_set(test_slices_paths, test_gts_paths)
 
     with (save_dir / 'train.pickle').open('wb') as data:
         pickle.dump({
             'X': train_slices,
             'y': train_gts,
-            'patients': train_patients
+            'patients': train_patients,
+            'sizes': train_sizes,
         }, data)
 
     with (save_dir / 'test.pickle').open('wb') as data:
         pickle.dump({
             'X': test_slices,
             'y': test_gts,
-            'patients': test_patients
+            'patients': test_patients,
+            'sizes': test_sizes,
         }, data)
 
 

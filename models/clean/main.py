@@ -7,7 +7,20 @@ import numpy as np
 from generator import Generator2D, Generator3D, KFold
 from unet import get_model
 from tensorflow.keras.callbacks import ModelCheckpoint
+import skimage.transform
 
+def desquare(image, size):
+    w, h = size
+
+    diff = abs(w - h)
+    pad_before = diff // 2
+
+    if w < h:
+        return image[:, pad_before:w+pad_before]
+    elif h < w:
+        return image[:, :, pad_before:h+pad_before]
+    else:
+        return image
 
 def main(path, preprocess, dimensions, weights=None, results=None):
     assert preprocess == 0 or preprocess == 1
@@ -22,15 +35,24 @@ def main(path, preprocess, dimensions, weights=None, results=None):
         model.load_weights(weights)
         fun = {2: Generator2D, 3: Generator3D}[dimensions]
         predicted = []
-        for patient, X in zip(dataset['patients'], dataset['X']):
+        predicted_raw = []
+        for patient, X, size in zip(dataset['patients'], dataset['X'], dataset['sizes']):
             print(f'Patient: {patient}')
             current_predicted = []
             for slice_index in range(len(X)):
                 current_predicted.append(model.predict(np.expand_dims(fun.generate_data(X, slice_index, preprocess=preprocess == 1), 0)))
-            predicted.append(np.array(current_predicted).squeeze())
+
+            current_predicted_raw = np.array(current_predicted).squeeze()
+            current_predicted = skimage.transform.resize(current_predicted_raw, (current_predicted_raw.shape[0], max(size), max(size)))
+            current_predicted = desquare(current_predicted, size)
+            predicted.append(current_predicted)
+            predicted_raw.append(current_predicted_raw)
 
         with open(results, 'wb') as file:
-            pickle.dump(predicted, file)
+            pickle.dump({
+                'raw': predicted_raw,
+                'transformed': predicted,
+            }, file)
     else:
         generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1,
                                                                  batch_size=10)
