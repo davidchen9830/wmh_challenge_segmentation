@@ -81,6 +81,12 @@ def generate_data(path, save_dir):
         img = np.concatenate([t1, fl], axis=-1)
         pre_processed = np.concatenate([img, slices_morph], axis=-1)
 
+        # (h, w, nb_slices, channels)
+        # (nb_slices, h, w, channels)
+        gt = np.transpose(gt, (2, 0, 1, 3))
+        img = np.transpose(img, (2, 0, 1, 3))
+        pre_processed = np.transpose(pre_processed, (2, 0, 1, 3))
+
         dic[i] = fl_c
 
         # 200, 200, 1
