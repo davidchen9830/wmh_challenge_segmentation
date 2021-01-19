@@ -4,18 +4,20 @@ import math
 
 
 class Generator(Sequence):
-    def __init__(self, X, y, batch_size=10, shuffle=True):
+    def __init__(self, X, y, preprocess=False, batch_size=10, shuffle=True):
         """
         Create a new generator.
 
         Parameters:
         X (list(np.array(n_slices, 200, 200, n_filters))): The individual's data
         y (list(np.array(n_slices, 200, 200,))): The individual's segmentations
+        preprocess (bool): Whether to have the preprocess
         batch_size (int): The batch size
         shuffle (bool): Whether to shuffle the dataset
         """
         self.X = X
         self.y = y
+        self.preprocess = preprocess
         self.batch_size = batch_size
         self.shuffle = shuffle
 
@@ -39,7 +41,7 @@ class Generator(Sequence):
             np.random.shuffle(self.slices_without_white)
 
     def __len__(self):
-        return math.ceil(len(self.slices_with_white) / self.batch_size)
+        return len(self.slices_with_white) // self.batch_size
 
     def get_data(self, individual, slice_index):
         raise NotImplementedError()
@@ -63,19 +65,54 @@ class Generator(Sequence):
 
 class Generator2D(Generator):
     def get_data(self, individual, slice_index):
-        return self.X[individual][slice_index], self.y[individual][slice_index]
+        return self.X[individual][slice_index, :, :, 0:({False: 2, True: 3}[self.preprocess])], self.y[individual][slice_index]
 
 
 class Generator3D(Generator):
     def get_data(self, individual, slice_index):
         X = []
+        n_channels = ({False: 2, True: 3}[self.preprocess])
         if slice_index == 0:
-            X.append(np.zeros(self.X[individual][slice_index].shape))
+            X.append(np.zeros(self.X[individual][slice_index, :, :, 0:n_channels].shape))
         else:
-            X.append(self.X[individual][slice_index - 1])
-        X.append(self.X[individual][slice_index])
+            X.append(self.X[individual][slice_index - 1, :, :, 0:n_channels])
+        X.append(self.X[individual][slice_index, :, :, 0:n_channels])
         if slice_index == len(self.X[individual]) - 1:
-            X.append(np.zeros(self.X[individual][slice_index].shape))
+            X.append(np.zeros(self.X[individual][slice_index, :, :, 0:n_channels].shape))
         else:
-            X.append(self.X[individual][slice_index + 1])
+            X.append(self.X[individual][slice_index + 1, :, :, 0:n_channels])
         return np.concatenate(X, axis=-1), self.y[individual][slice_index]
+
+
+class KFold(Sequence):
+    def __init__(self, generator, folds, validation):
+        self.generator = generator
+        self.folds = folds
+        self.validation = validation
+
+        self.n_batches = len(self.generator)
+        self.current_fold = self.folds - 1
+        self.batches_by_fold = self.n_batches // self.folds
+
+    def on_epoch_end(self):
+        self.current_fold += 1
+        print(f"Increasing fold for {'val' if self.validation else 'train'}")
+        if self.current_fold == self.folds:
+            if self.validation:
+                self.generator.on_epoch_end()
+            self.current_fold = 0
+
+    def __len__(self):
+        if self.validation:
+            return self.batches_by_fold
+        else:
+            return self.n_batches - self.batches_by_fold
+
+    def __getitem__(self, item):
+        if self.validation:
+            item += self.current_fold * self.batches_by_fold
+            return self.generator[item]
+        else:
+            if item >= self.current_fold * self.batches_by_fold:
+                item += self.batches_by_fold
+            return self.generator[item]
