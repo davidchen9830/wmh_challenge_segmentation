@@ -1,9 +1,6 @@
 import sys
-import glob
 import nibabel
 from pathlib import Path
-import matplotlib.pyplot as plt
-import matplotlib
 import skimage.transform
 import numpy as np
 import skimage
@@ -12,115 +9,139 @@ import skimage.morphology
 from sklearn.model_selection import train_test_split
 import pickle
 
+
 def fill_dataset(gts, slices, d):
     # Ground Truth
     wmh = d / "wmh.nii.gz"
 
     # Data
-    flair = d / "orig" / "FLAIR.nii.gz"
-    t1 = d / "orig" / "T1.nii.gz"
+    flair = d / "pre" / "FLAIR.nii.gz"
+    t1 = d / "pre" / "T1.nii.gz"
 
     gts.append(str(wmh))
-    slices.append((str(flair), str(t1))) # Appending a tuple (flair_path, t1_path)
+    slices.append((str(flair), str(t1)))  # Appending a tuple (flair_path, t1_path)
+
 
 def construct_dataset(path):
     root = Path(path)
-    gts, slices = [], []
+    train_slices, train_gts, train_patients = [], [], []
+    test_slices, test_gts, test_patients = [], [], []
 
-    singapore = root / "Singapore"
-    ultrecht = root / "Utrecht"
-    ge3t = root / "GE3T"
 
-    for d in singapore.iterdir():
-        fill_dataset(gts, slices, d)
-    for d in ultrecht.iterdir():
-        fill_dataset(gts, slices, d)
-    for d in ge3t.iterdir():
-        fill_dataset(gts, slices, d)
-    return np.array(gts), np.array(slices)
+    for subset in ["Singapore", "Utrecht", "GE3T"]:
+        dataset = root / subset
+        slices, gts, patients = [], [], []
+        for d in sorted(list(dataset.iterdir())):
+            patients.append(f"{d.parent.name}/{d.name}")
+            fill_dataset(gts, slices, d)
+        split = train_test_split(slices, gts, patients, test_size=0.20, random_state=42)
+        train_slices += split[0]
+        test_slices += split[1]
+        train_gts += split[2]
+        test_gts += split[3]
+        train_patients += split[4]
+        test_patients += split[5]
+
+    return (train_slices, train_gts, train_patients), (test_slices, test_gts, test_patients)
+
+
+def square(image):
+    w, h, c = image.shape
+
+    diff = abs(w - h)
+    pad_before = diff // 2
+    pad_after = diff - pad_before
+
+    if w < h:
+        return np.pad(image, ((pad_before, pad_after), (0, 0), (0, 0)))
+    elif h < w:
+        return np.pad(image, ((0, 0), (pad_before, pad_after), (0, 0)))
+    else:
+        return image
+
+
+def compute_data(slices_path, gts_path):
+    print(f'Computing for {gts_path}.')
+    disk = skimage.morphology.disk(2)
+    fl = square(nibabel.load(slices_path[0]).get_fdata(dtype=np.float32))
+    t1 = square(nibabel.load(slices_path[1]).get_fdata(dtype=np.float32))
+    gt = square(nibabel.load(gts_path).get_fdata(dtype=np.float32))
+
+    fl = (fl - fl.mean()) / fl.std()
+    t1 = (t1 - t1.mean()) / t1.std()
+    # Don't center and reduce gt
+
+    _, _, t1_c = t1.shape
+    _, _, fl_c = fl.shape
+    _, _, gt_c = gt.shape
+
+    t1 = skimage.transform.resize(t1, (200, 200, t1_c))
+    fl = skimage.transform.resize(fl, (200, 200, fl_c))
+    gt = skimage.transform.resize(gt, (200, 200, gt_c))
+
+    slices_morph = None
+    for s in range(fl_c):
+        flair_slice = fl[:, :, s]
+        morph = skimage.morphology.dilation(flair_slice, disk)
+        top_hat = morph - flair_slice  # skimage.util.invert(morph - flair_slice)
+        top_hat = top_hat.reshape((200, 200, 1))
+        if slices_morph is None:
+            slices_morph = top_hat
+        else:
+            slices_morph = np.concatenate([slices_morph, top_hat], axis=-1)
+
+    slices_morph = np.array(slices_morph)
+    slices_morph = slices_morph.reshape((200, 200, fl_c, 1))
+
+    t1 = t1.reshape((200, 200, t1_c, 1))
+    fl = fl.reshape((200, 200, fl_c, 1))
+
+    gt = gt.reshape((200, 200, gt_c, 1))
+    pre_processed = np.concatenate([t1, fl, slices_morph], axis=-1)
+
+    # (h, w, nb_slices, channels)
+    # (nb_slices, h, w, channels)
+    gt = np.transpose(gt, (2, 0, 1, 3))
+    gt = gt.round()
+    gt[gt > 1] = 1
+    gt[gt < 0] = 0
+    pre_processed = np.transpose(pre_processed, (2, 0, 1, 3))
+
+    return pre_processed, gt
+
+
+def compute_set(slices_paths, gts_paths):
+    slices, gts = [], []
+    for slices_path, gts_path in zip(slices_paths, gts_paths):
+        result = compute_data(slices_path, gts_path)
+        slices.append(result[0])
+        gts.append((result[1]))
+    return slices, gts
 
 
 def generate_data(path, save_dir):
-    gts, slices = construct_dataset(path)
-    all_gts = []
-    all_imgs = []
-    all_preprocessed = []
-    dic = {}
-    disk = skimage.morphology.disk(2.5)
-    for i in range(len(gts)):
-        fl = nibabel.load(slices[i][0]).get_fdata(dtype=np.float32)
-        t1 = nibabel.load(slices[i][1]).get_fdata(dtype=np.float32)
-        gt = nibabel.load(gts[i]).get_fdata(dtype=np.float32)
+    (train_slices_paths, train_gts_paths, train_patients), (test_slices_paths, test_gts_paths, test_patients) = construct_dataset(path)
+    train_slices, train_gts = compute_set(train_slices_paths, train_gts_paths)
+    test_slices, test_gts = compute_set(test_slices_paths, test_gts_paths)
 
-        _, _, t1_c = t1.shape
-        _, _, fl_c = fl.shape
-        _, _, gt_c = gt.shape
+    with (save_dir / 'train.pickle').open('wb') as data:
+        pickle.dump({
+            'X': train_slices,
+            'y': train_gts,
+            'patients': train_patients
+        }, data)
 
-        t1 = skimage.transform.resize(t1, (200, 200, t1_c))
-        fl = skimage.transform.resize(fl, (200, 200, fl_c))
-        gt = skimage.transform.resize(gt, (200, 200, gt_c))
-
-        slices_morph = None
-        for s in range(fl_c):
-            flair_slice = fl[:, :, s]
-            morph = skimage.morphology.dilation(flair_slice, disk)
-            top_hat = skimage.util.invert(morph - flair_slice)
-            top_hat = top_hat.reshape((200, 200, 1))
-            if slices_morph is None:
-                slices_morph = top_hat
-            else:
-                slices_morph = np.concatenate([slices_morph, top_hat], axis=-1)
-
-        slices_morph = np.array(slices_morph)
-        slices_morph = slices_morph.reshape((200, 200, fl_c, 1))
-
-        t1 = t1.reshape((200, 200, t1_c, 1))
-        fl = fl.reshape((200, 200, fl_c, 1))
-
-        gt = gt.reshape((200, 200, gt_c, 1))
-        img = np.concatenate([t1, fl], axis=-1)
-        pre_processed = np.concatenate([img, slices_morph], axis=-1)
-
-        # (h, w, nb_slices, channels)
-        # (nb_slices, h, w, channels)
-        gt = np.transpose(gt, (2, 0, 1, 3))
-        img = np.transpose(img, (2, 0, 1, 3))
-        pre_processed = np.transpose(pre_processed, (2, 0, 1, 3))
-
-        dic[i] = fl_c
-
-        # 200, 200, 1
-        all_gts.append(gt)
-        # 200, 200, 2
-        all_imgs.append(img)
-        # 200, 200, 3
-        all_preprocessed.append(pre_processed)
-    with open(save_dir + '/gts.pickle', 'wb') as data:
-        pickle.dump(all_gts, data)
-    with open(save_dir + '/imgs.pickle', 'wb') as data:
-        pickle.dump(all_imgs, data)
-    with open(save_dir +'/preprocessed.pickle', 'wb') as data:
-        pickle.dump(all_preprocessed, data)
-
-    return dic
+    with (save_dir / 'test.pickle').open('wb') as data:
+        pickle.dump({
+            'X': test_slices,
+            'y': test_gts,
+            'patients': test_patients
+        }, data)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print('Usage: ./bin data_path save_dir')
         exit(1)
-    dic = generate_data(sys.argv[1], sys.argv[2])
-    indices = []
-    for k, v in dic.items():
-        for i in range(v):
-            indices.append([k, i])
-    indices = np.array(indices)
-    # [[0, 1]...[0, 48]...]
-    np.random.seed(42)
-    np.random.shuffle(indices)
-    train_indices, test_indices = train_test_split(indices,
-                                                   test_size=0.33,
-                                                   random_state=42)
-    np.save(sys.argv[2] + '/x_train_slices.npy', train_indices)
-    np.save(sys.argv[2] + '/x_test_slices.npy', test_indices)
+    generate_data(Path(sys.argv[1]), Path(sys.argv[2]))
     print('Finished !')
