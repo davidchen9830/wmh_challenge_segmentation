@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-from slices_generator import SlicesGenerator
 from generator import Generator
 from construct_dataset import construct_dataset
 from unet import get_model
