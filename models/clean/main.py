@@ -2,7 +2,7 @@ import pickle
 import sys
 from pathlib import Path
 
-import numpy as np
+import tensorflow as tf
 from generator import Generator2D, Generator3D, KFold
 from unet import get_model
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -14,7 +14,8 @@ def main(path, preprocess, dimensions):
     with path.open('rb') as file:
         dataset = pickle.load(file)
 
-    generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1, batch_size=20)
+    generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1,
+                                                             batch_size=10)
     train_gen = KFold(generator, folds=5, validation=False)
     val_gen = KFold(generator, folds=5, validation=True)
 

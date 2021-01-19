@@ -93,12 +93,12 @@ class KFold(Sequence):
         self.n_batches = len(self.generator)
         self.current_fold = self.folds - 1
         self.batches_by_fold = self.n_batches // self.folds
+        self.on_epoch_end()
 
     def on_epoch_end(self):
         self.current_fold += 1
-        print(f"Increasing fold for {'val' if self.validation else 'train'}")
         if self.current_fold == self.folds:
-            if self.validation:
+            if not self.validation:
                 self.generator.on_epoch_end()
             self.current_fold = 0
 
