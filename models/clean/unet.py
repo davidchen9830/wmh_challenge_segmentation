@@ -1,10 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Input, Conv2D, MaxPool2D, Conv2DTranspose, Concatenate, Cropping2D, UpSampling2D, \
-    ZeroPadding2D
+from tensorflow.keras.layers import Input, Conv2D, MaxPool2D, Concatenate, Cropping2D, UpSampling2D
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.optimizers import Adam
-import tensorflow.keras.backend as K
+
+from metrics import dice_coef
 
 
 def get_crop_shape(target, refer):
@@ -60,5 +60,5 @@ def get_model(shape, channels):
     outputs = Conv2D(1, (1, 1), padding='same', activation='sigmoid')(conv_9_2)
     model = Model(inputs=inputs, outputs=outputs, name='unet')
     model.compile(optimizer=Adam(lr=1e-4), loss=BinaryCrossentropy(),
-                  metrics=[tf.keras.metrics.BinaryAccuracy(), tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
+                  metrics=[tf.keras.metrics.BinaryAccuracy(), tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), dice_coef])
     return model

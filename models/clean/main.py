@@ -76,13 +76,13 @@ def main(path, preprocess, dimensions, weights=None, results=None):
         name += f"_{dimensions}d"
         name += f"_{time.time()}"
         name += ".h5"
-        checkpoint = ModelCheckpoint(name, save_best_only=True)
+        checkpoint = ModelCheckpoint(name, save_best_only=True, monitor='val_dice_coef', mode='max')
 
         model.fit(
             x=train_gen,
             epochs=20,
             callbacks=[checkpoint],
-            validation_data=val_gen
+            validation_data=val_gen,
         )
 
 
