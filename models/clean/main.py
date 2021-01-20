@@ -80,7 +80,7 @@ def main(path, preprocess, dimensions, weights=None, results=None):
 
         model.fit(
             x=train_gen,
-            epochs=20,
+            epochs=100,
             callbacks=[checkpoint],
             validation_data=val_gen,
         )
