@@ -1,4 +1,5 @@
 import tensorflow.keras.backend as K
+from scipy.spatial.distance import dice
 
 
 def recall(y_true, y_pred):
@@ -20,12 +21,5 @@ def f1(y_true, y_pred):
     r = recall(y_true, y_pred)
     return 2 * ((p * r) / (p + r + K.epsilon()))
 
-
-def dice_coef(y_true, y_pred, smooth=1):
-    intersection = K.sum(y_true * y_pred, axis=[1, 2])
-    union = K.sum(y_true, axis=[1, 2]) + K.sum(y_pred, axis=[1, 2])
-    return K.mean((2. * intersection + smooth) / (union + smooth), axis=0)
-
-
-def dice_coef_loss(y_true, y_pred, smooth=1):
-    return -dice_coef(y_true, y_pred, smooth=smooth)
+def dice_coef(y_true, y_pred):
+    return 1 - dice(y_true.flatten(), y_pred.flatten())
