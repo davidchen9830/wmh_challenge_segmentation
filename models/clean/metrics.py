@@ -24,7 +24,6 @@ def f1(y_true, y_pred):
 def dice_coef(y_true, y_pred, smooth=1):
     intersection = K.sum(y_true * y_pred, axis=[1, 2])
     union = K.sum(y_true, axis=[1, 2]) + K.sum(y_pred, axis=[1, 2])
-    print(intersection.shape, union.shape)
     return K.mean((2. * intersection + smooth) / (union + smooth), axis=0)
 
 
