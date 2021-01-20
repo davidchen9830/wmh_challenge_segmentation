@@ -105,6 +105,7 @@ def compute_data(slices_path, gts_path):
     gt = gt.round()
     gt[gt > 1] = 1
     gt[gt < 0] = 0
+    gt = gt.astype(np.bool)
     pre_processed = np.transpose(pre_processed, (2, 0, 1, 3))
 
     return pre_processed, gt, (w, h)

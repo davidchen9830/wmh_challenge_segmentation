@@ -4,6 +4,8 @@ from pathlib import Path
 
 import tensorflow as tf
 import numpy as np
+import imgaug.augmenters as iaa
+
 from generator import Generator2D, Generator3D, KFold
 from unet import get_model
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -55,8 +57,14 @@ def main(path, preprocess, dimensions, weights=None, results=None):
                 'transformed': predicted,
             }, file)
     else:
+        augmentor = iaa.Sequential([
+            iaa.Affine(
+                rotate=(-45, 45),
+                translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+            ),
+        ])
         generator = {2: Generator2D, 3: Generator3D}[dimensions](dataset['X'], dataset['y'], preprocess=preprocess == 1,
-                                                                 batch_size=10)
+                                                                 batch_size=10, augment=augmentor)
         train_gen = KFold(generator, folds=5, validation=False)
         val_gen = KFold(generator, folds=5, validation=True)
 
