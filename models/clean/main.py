@@ -82,9 +82,6 @@ if __name__ == "__main__":
     if len(sys.argv) != 4 and len(sys.argv) != 6:
         print("Usage: main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3> <weights> <results>")
         sys.exit(1)
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(gpus[0], True)
-    # tf.config.experimental.set_visible_devices([], 'GPU')
     main(Path(sys.argv[1]), preprocess=int(sys.argv[2]), dimensions=int(sys.argv[3]),
          weights=sys.argv[4] if len(sys.argv) == 6 else None,
          results=sys.argv[5] if len(sys.argv) == 6 else None)
