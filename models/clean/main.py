@@ -8,6 +8,7 @@ from generator import Generator2D, Generator3D, KFold
 from unet import get_model
 from tensorflow.keras.callbacks import ModelCheckpoint
 import skimage.transform
+import time
 
 def desquare(image, size):
     w, h = size
@@ -59,9 +60,15 @@ def main(path, preprocess, dimensions, weights=None, results=None):
         train_gen = KFold(generator, folds=5, validation=False)
         val_gen = KFold(generator, folds=5, validation=True)
 
-        checkpoint = ModelCheckpoint("best_model.h5", save_best_only=True)
-        if preprocess:
-            checkpoint = ModelCheckpoint("best_model_preprocess.h5", save_best_only=True)
+        name = "best_model"
+        if preprocess == 0:
+            name += "_raw"
+        else:
+            name += "_preprocessed"
+        name += f"_{dimensions}d"
+        name += f"_{time.time()}"
+        name += ".h5"
+        checkpoint = ModelCheckpoint(name, save_best_only=True)
 
         model.fit(
             x=train_gen,
