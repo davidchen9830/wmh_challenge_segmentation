@@ -6,14 +6,23 @@ import tensorflow as tf
 import tensorlayer as tl
 import nibabel
 
-from metrics import recall, precision, f1, dice_coef
+from metrics import recall, precision, f1, dice_coef, alex_dice
 
 met = {
     'recall': tf.keras.metrics.Recall(),
     'precision': tf.keras.metrics.Precision(),
     'bin_acc': tf.keras.metrics.BinaryAccuracy(),
     'dice_coef': dice_coef,
+    'alex_dice': alex_dice,
+    'tl_dice': tl.cost.dice_coe
 }
+
+def change_gt(gt):
+    gt = gt.round()
+    gt[gt > 1] = 0
+    gt[gt < 0] = 0
+    gt = gt.astype(np.bool)
+    return gt
 
 def calculate_metrics(Y_true, Y_pred):
     assert(len(Y_pred) == len(Y_true))
@@ -23,20 +32,18 @@ def calculate_metrics(Y_true, Y_pred):
         for i in range(len(Y_true)):
             y_true = np.array(Y_true[i],dtype=np.float32)
             shape = y_true.shape
-            y_pred = np.array(Y_pred[i])
-            y_pred = (y_true.reshape((*shape))).astype(np.float32)
-            print(y_pred.max())
+            y_pred = np.array(Y_pred[i]) > 0.5
+            y_pred = (y_pred.reshape((*shape))).astype(np.float32)
             batch_metric.append(v(y_true, y_pred))
         batch_metric = np.array(batch_metric)
-        print(batch_metric)
         dic[k] = np.mean(batch_metric)
     return dic
 
 def main(data_path, test_pickle_path, result_pickle_path):
     with open(test_pickle_path, 'rb') as data:
         test_data = pickle.load(data)
-    with open(result_pickle_path, 'rb') as data:
-        result_data = pickle.load(data)
+    with open(result_pickle_path, 'rb') as res:
+        result_data = pickle.load(res)
     
     Y_true_raw = test_data['y']
     Y_pred_raw = result_data['raw']

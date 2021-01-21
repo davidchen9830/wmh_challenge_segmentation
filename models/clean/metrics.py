@@ -31,3 +31,6 @@ def dice_coef(y_true, y_pred, smooth=1):
 def dice_coef_training(y_true, y_pred):
     y_true = tf.cast(y_true, dtype=tf.float32)
     return 1 - dice_coef(y_true, y_pred)
+
+def alex_dice(y_true, y_pred):
+    return 1 - dice(y_true.flatten(), y_pred.flatten())
