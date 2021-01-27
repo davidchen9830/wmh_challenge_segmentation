@@ -26,6 +26,15 @@ def desquare(image, size):
         return image
 
 def main(path, preprocess, dimensions, weights=None, results=None):
+    """
+    Main function, launching either the training or test to obtain results
+    Parameters:
+    path (str): The train.pickle file
+    preprocess (bool): Preprocess or not => (2 or 3 channels), (6 or 9 channels)
+    dimensions (int): Number of dimensions
+    weights (str): Path to the computed weight (used for testing)
+    results (str): Path to where the result should be computed (used for testing)
+    """
     assert preprocess == 0 or preprocess == 1
     assert dimensions == 2 or dimensions == 3
     with path.open('rb') as file:

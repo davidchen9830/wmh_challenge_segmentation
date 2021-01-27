@@ -102,6 +102,14 @@ class Generator3D(Generator):
 
 
 class KFold(Sequence):
+    """
+    Creates a KFold generator
+
+    Parameters:
+    generator (Generator): The generator to KFold
+    folds (int): The number of folds
+    validation (bool): Whether the KFold should yield validation or training sample
+    """
     def __init__(self, generator, folds, validation):
         self.generator = generator
         self.folds = folds

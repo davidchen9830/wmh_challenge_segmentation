@@ -11,6 +11,15 @@ import pickle
 
 
 def fill_dataset(gts, slices, d):
+    """
+    Fill the dataset with path to images
+
+    Parameters:
+    gts (list(str)): List containing all the gts path
+    slices (list(str, str)): List containing all the slices path (FLAIR, T1)
+    d (Path): Path of the dataset for the current patient
+    """
+    
     # Ground Truth
     wmh = d / "wmh.nii.gz"
 
@@ -23,6 +32,16 @@ def fill_dataset(gts, slices, d):
 
 
 def construct_dataset(path):
+    """
+    Construct the train/test split with 80/20 ratio
+    with the given path where the dataset is located
+
+    Parameters:
+    path (Path): Path of the dataset root folder
+
+    Returns:
+    (X, Y) with X and Y being 3 elements (Patient slices, GT slices, Patient Name)
+    """
     root = Path(path)
     train_slices, train_gts, train_patients = [], [], []
     test_slices, test_gts, test_patients = [], [], []
@@ -46,6 +65,15 @@ def construct_dataset(path):
 
 
 def square(image):
+    """
+    square the current image along the largest dimension
+
+    Parameters:
+    image: ndarray (w, h, ...)
+
+    Returns:
+    image: ndarray squared ndarray (w,w, ...) or (h,h, ...)
+    """
     w, h, c = image.shape
 
     diff = abs(w - h)
@@ -61,6 +89,20 @@ def square(image):
 
 
 def compute_data(slices_path, gts_path):
+    """
+    Main function computing the all the necessary data for training
+    Get the data -> Square it -> Center and Reduce -> Resize -> Add morphology slice
+
+    Parameters:
+    slices_path list(str, str): List of image path (FLAIR, T1)
+    gts_path list(str): List of ground truth
+
+    Returns:
+    pre_processed ndarray(w, h, 3): Data for training, containing in the channels FLAIR, T1, Preprocess
+    gt            ndarray(w, h, 1): Gt
+    (w, h)        shape of the image along the 0 and 1 dimension
+
+    """
     print(f'Computing for {gts_path}.')
     disk = skimage.morphology.disk(2)
     fl, _ = square(nibabel.load(slices_path[0]).get_fdata(dtype=np.float32))
@@ -112,6 +154,18 @@ def compute_data(slices_path, gts_path):
 
 
 def compute_set(slices_paths, gts_paths):
+    """
+    Compute the set for the given slices_path and gts_paths
+
+    Parameters:
+    slices_paths (list(str)): List containing all the gts path
+    gts_paths    (list(str, str)): List containing all the slices path (FLAIR, T1)
+
+    Returns:
+    slices: Slices for each Patient
+    gts   : GT for each Patient
+    sizes : Resized image for each image
+    """
     slices, gts, sizes = [], [], []
     for slices_path, gts_path in zip(slices_paths, gts_paths):
         result = compute_data(slices_path, gts_path)
@@ -122,6 +176,14 @@ def compute_set(slices_paths, gts_paths):
 
 
 def generate_data(path, save_dir):
+    """
+    Main function, computing the data for training
+    It creates two files: save_dir/train.pickle and save_dir/test.pickle
+
+    Parameters:
+    path: Root folder of the dataset
+    save_dir: Root folder of the save directory
+    """
     (train_slices_paths, train_gts_paths, train_patients), (test_slices_paths, test_gts_paths, test_patients) = construct_dataset(path)
     train_slices, train_gts, train_sizes = compute_set(train_slices_paths, train_gts_paths)
     test_slices, test_gts, test_sizes = compute_set(test_slices_paths, test_gts_paths)

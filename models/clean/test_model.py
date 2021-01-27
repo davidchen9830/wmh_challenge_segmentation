@@ -6,15 +6,13 @@ import tensorflow as tf
 import tensorlayer as tl
 import nibabel
 
-from metrics import recall, precision, f1, dice_coef, alex_dice
+from metrics import recall, precision, f1, dice_coef
 
 met = {
     'recall': tf.keras.metrics.Recall(),
     'precision': tf.keras.metrics.Precision(),
     'bin_acc': tf.keras.metrics.BinaryAccuracy(),
-    'dice_coef': dice_coef,
-    'alex_dice': alex_dice,
-    'tl_dice': tl.cost.dice_coe
+    'dice_coef': dice_coef
 }
 
 def change_gt(gt):
