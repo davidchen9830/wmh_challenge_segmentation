@@ -3,7 +3,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Conv2D, MaxPool2D, Concatenate, Cropping2D, UpSampling2D
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.optimizers import Adam
-from metrics import dice_coef, dice_coef_training
+from metrics import dice_coef
 
 
 def get_crop_shape(target, refer):
