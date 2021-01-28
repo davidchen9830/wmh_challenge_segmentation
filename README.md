@@ -17,6 +17,15 @@ U-NET model for white matter segmentation
 The dataset is the one used during the WMH Segmentation Challenge
 In our repository, it should be placed under a datasets/ folder
 
+### Generate the data for training
+
+Before training the model, we need to generate the data that will be used, to
+do this, you will need to launch:
+
+- python generate_data.py <path/to/datasets> <save/dir>
+
+Note that the <save/dir> is the directory where the `train.pickle` file will be stored.
+
 ## Usage
 
 cd models/clean
