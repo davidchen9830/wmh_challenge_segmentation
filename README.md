@@ -27,16 +27,16 @@ python3 main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3>
 
 Please look at the file main.py for more information regarding the parameters
 
-### Testing
-
-python3 main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3> <weights> <results>
-
 Examples of training usage:
 
 - python3 main.py data/train.pickle 0 2
 - python3 main.py data/train.pickle 1 2
 - python3 main.py data/train.pickle 0 3
 - python3 main.py data/train.pickle 1 3
+
+### Testing
+
+python3 main.py <path/to/dataset.pickle> <preprocess:0|1> <3d:2|3> <weights> <results>
 
 <path/to/dataset.pickle> should be something like */test.pickle
 
